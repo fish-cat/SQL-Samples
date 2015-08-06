@@ -1,0 +1,511 @@
+Archive Statements
+SELECT tag, time, DIGSTRING(status) value
+FROM piarchive..picomp WHERE tag = 'cdm158' AND time >= 't'
+{
+Returns today’s "cdm158" events translated into digital state names.
+
+The "picomp" table is a PI SQL Subsystem compatible table representing archive values using 3 columns: "value", "svalue", and "status".
+}
+SELECT tag, time, DIGSTRING(CAST(value AS Int32)) value, DIGSTRING(status) status
+FROM piarchive..picomp2 WHERE tag = 'cdm158' AND time >= 't'
+{
+Returns today’s "cdm158" events translated into digital state names.
+
+The "picomp2" table represents values as VARIANTs. Thus, you might need to cast the "value" column prior to using it as a function argument.
+}
+SELECT tag, time, value, svalue, status FROM piarchive..picomp WHERE time = '*'
+{
+Returns snapshots of all tags.
+
+The "time = '*'" WHERE condition in the "picomp" table has a special meaning - returns snapshots although they are not archived at the current time.
+}
+SELECT tag, time, value, status FROM piarchive..pisnapshot
+{
+Returns snapshots of all tags.
+
+As well as the "picomp2" table, the "pisnapshot" table represents values as VARIANTs.
+}
+SELECT TOP 10 tag, time, value, status FROM piarchive..picomp2
+WHERE tag = 'sinusoid' ORDER BY tag, time DESC
+{
+Returns the last 10 events of the "sinusoid" tag.
+
+Both the "picomp" and the "picomp2" table optimizes "SELECT TOP ... ORDER BY tag, time DESC" statements so that you can quickly get the most recent events.
+}
+SELECT tag, time, value, status
+FROM
+   (SELECT TOP 10 tag, time, _index, value, status FROM piarchive..picomp2
+    WHERE tag = 'sinusoid' ORDER BY tag, time DESC) t
+ORDER BY tag, time, _index
+{
+Returns the last 10 events of the "sinusoid" tag ordered chronologically in ascending order.
+}
+SELECT COUNT(*) FROM piarchive..picomp2 WHERE tag = 'sinusoid' AND time >= BOM('*')
+{
+Returns number of "sinusoid" events since the beginning of the current month.
+
+PI OLEDB optimizes "count" queries into the "picomp" and "picomp2" tables so that you can quickly get number of events in a time interval.
+}
+SELECT tag FROM piarchive..pisnapshot
+WHERE tag IN (SELECT tag FROM pipoint..classic WHERE pointsource = 'C')
+AND ((DATE('*') - time) BETWEEN RELDATE('4h') AND RELDATE('365d') OR status <> 0)
+{
+Returns "bad and stale" calculated tags.
+
+Using a SQL WHERE condition, you can define any criterion for being "stale and bad". In this case, the criterion is either snapshot older than 4 hours and newer than 1 year or snapshot with a bad status.
+}
+INSERT piarchive..picomp2 (tag, time, value, annotations)
+VALUES ('sinusoid', 't+8h', 1.0, 'Manually created')
+{
+Creates an annotated "sinusoid" event.
+
+Annotations are accessible only through the "picomp2" table. The "picomp" table indicates annotated events using the "flags" column, but you can neither modify nor retrieve the annotations data.
+}
+SELECT time, value, annotations FROM piarchive..picomp2
+WHERE tag = 'sinusoid' AND time >= 't' AND annotated = TRUE
+{
+Returns today's annotated "sinusoid" events.
+}
+DELETE piarchive..picomp2 WHERE tag = 'sinusoid' AND time = 't+8h'
+{
+Deletes a "sinusoid" event.
+
+The "picomp2" table supports all DML statements, while the PI SQL Subsystem compatible "picomp" table only allows you to create new events using INSERT statements.
+}
+INSERT piarchive..picomp (tag, time, value, flags) VALUES ('sinusoid', 't+8h', 1.0, 'Q')
+{
+Creates a "sinusoid" event with the "Questionable" flag.
+}
+INSERT piarchive..picomp2 (tag, time, value, questionable) VALUES ('sinusoid', 't+8h', 1.0, TRUE)
+{
+Creates a "sinusoid" event with the "Questionable" flag.
+}
+DELETE piarchive..picomp2 WHERE tag = 'sinusoid' AND time = 't+8h'
+{
+Deletes a "sinusoid" event.
+}
+INSERT piarchive..picomp (tag, time, status) VALUES ('cdm158', 't+8h', DIGCODE('Auto', 'Modes'))
+{
+Creates a digital tag event.
+
+Note that the "picomp" table returns digital tag values in the "status" column. 
+}
+DELETE piarchive..picomp2 WHERE tag = 'cdm158' AND time = 't+8h'
+{
+Deletes a "cdm158" event.
+}
+INSERT piarchive..picomp2 (tag, time, value) VALUES ('cdm158', 't+8h', DIGCODE('Auto', 'Modes'))
+{
+Creates a digital tag event.
+
+Contrary to the "picomp" table", the "picomp2" table always returns values in the "value" column.
+}
+DELETE piarchive..picomp2 WHERE tag = 'cdm158' AND time = 't+8h'
+{
+Deletes a "cdm158" event.
+}
+INSERT pipoint..classic (tag, pointtypex) VALUES ('sinusoid2', 'float32')
+{
+Creates a "float32" demo tag.
+}
+INSERT piarchive..picomp (tag, time, value, status, flags)
+SELECT 'sinusoid2', time, value, status, flags FROM piarchive..picomp
+WHERE tag = 'sinusoid' AND time BETWEEN 't' AND '*'
+{
+Copies data from the "sinusoid" tag into the "sinusoid2" tag using the "picomp" table.
+}
+INSERT piarchive..picomp2 (tag, time, value, status, questionable, annotations)
+SELECT 'sinusoid2', time, value, status, questionable, annotations
+FROM piarchive..picomp2 WHERE tag = 'sinusoid' AND time BETWEEN 't' AND '*'
+{
+Copies data from the "sinusoid" tag into the "sinusoid2" tag using the "picomp2" table.
+
+If you executed the previous statement, too, the "sinusoid2" tag has two events at the same timestamp for all copied events.
+}
+DELETE pipoint..classic WHERE tag = 'sinusoid2'
+{
+Deletes the demo tag.
+}
+INSERT piarchive..picomp2 (tag, time, _index, value) VALUES ('sinusoid', 't+8h', 1, 2.0)
+{
+Creates a "sinusoid" event. The event is positioned as the first value at "today 08:00". Any existing values are moved forward.
+}
+DELETE piarchive..picomp2 WHERE tag = 'sinusoid' AND time = 't+8h' AND _index = 1
+{
+Deletes the first "sinusoid" value at "today 08:00".
+
+When deleting a specific event at a timestamp, you can delete just one event by one DELETE statement, i.e. you must restrict all primary key columns in the WHERE condition.
+}
+UPDATE piarchive..picomp2 SET value = 2.0 * CAST(value AS Float32)
+	WHERE tag = 'sinusoid' AND time >= 't'
+{
+Multiplies today's "sinusoid" events by factor 2.
+}
+DELETE piarchive..picomp2 WHERE tag = 'sinusoid' AND time >= 't'
+{
+Deletes today's "sinusoid" events.
+
+You should be very cautious when executing DELETE statements. We strongly recommend executing a SELECT statement with the same WHERE condition first to verify data to be deleted.
+}
+SELECT tag, time, value, status FROM piarchive..piinterp
+WHERE tag = 'sinusoid' AND time BETWEEN 'y' AND 't' AND timestep = '1h'
+{
+Returns yesterday’s "sinusoid" interpolations with 1 hour time step.
+
+The "piinterp" table is a PI SQL Subsystem compatible table representing archive values using 3 columns: "value", "svalue", and "status".
+}
+SELECT tag, time, value, status FROM piarchive..piinterp2
+WHERE tag = 'sinusoid' AND time BETWEEN 'y' AND 't' AND timestep = '1h'
+{
+Returns yesterday’s "sinusoid" interpolations with 1 hour time step.
+
+The "piinterp2" table represents values as VARIANTs.
+}
+SELECT tag, time, value FROM piarchive..piavg
+WHERE tag = 'sinusoid' AND time BETWEEN 'y' AND 't'
+AND timestep = '1h' AND calcbasis = 'EventWeighted'
+{
+Returns yesterday’s event-weighted "sinusoid" averages with 1 hour time step.
+
+PI OLEDB 3 enhances PI SQL Subsystem summary tables ("piavg", "pimin", "pimax", etc.) with features supported in PI SDK. For details about calculation bases and summary functions, which are not supported by the PI SQL Subsystem, you can also refer to the PI SDK help.
+}
+SELECT c.tag, c.time, c.value, c.status, i.tag, i.value, i.status
+FROM piarchive..picomp2 c INNER JOIN piarchive..piinterp2 i ON i.time = c.time
+WHERE c.tag = 'sinusoid' AND c.time >= 't' AND i.tag = 'sinusoidu'
+{
+Returns today’s "sinusoid" events with corresponding "sinusoidu" interpolations.
+
+The "picomp" table serves as a source of timestamps for the "piinterp" table. Potentially, you can join the "picomp" table with unlimited numbers of "piinterp" table instances. This way, you can retrieve synchronized data for unlimited number of points.
+}
+SELECT i1.tag, i1.time, i1.value, i1.status, i2.tag, i2.value, i2.status
+FROM piarchive..piinterp i1 INNER JOIN piarchive..piinterp i2 ON i1.time = i2.time
+WHERE i1.tag = 'sinusoid' AND i1.time BETWEEN 'y' AND 't'
+AND i1.timestep = '1h'AND i2.tag = 'sinusoidu'
+{
+Returns yesterday’s "sinusoid" and "sinusoidu" interpolations with 1 hour time step.
+
+The first instance of the "piinterp" table serves as a source of timestamps for the second one. Potentially, you can extend the join with unlimited number of the "piinterp" table instances.
+}
+SELECT a1.tag, a1.time, a1.value, a2.tag, a2.value
+FROM piarchive..piavg a1 INNER JOIN piarchive..piavg a2 ON a1.time = a2.time
+WHERE a1.tag = 'sinusoid' AND a1.time BETWEEN 'y' AND 't' AND a1.timestep = '1h'
+AND a2.tag = 'sinusoidu' AND a2.timestep = '1h'
+{
+Returns yesterday's "sinusoid" and "sinusoidu" time-weighted averages with 1 hour step.
+
+The first instance of the "piavg" table serves as a source of timestamps for the second one. Potentially, you can extend the join with unlimited number of the "piavg" table instances.
+}
+SELECT tag, time, value, status FROM piarchive..picomp2
+WHERE tag IN (SELECT tag FROM pipoint..classic WHERE pointsource = 'R') AND time >= 't'
+{
+Returns today’s events for the "classic" points of point source "R".
+}
+SELECT CASE WHEN (mytime - prevtime) < (nexttime - mytime) THEN prevtime ELSE nexttime END
+FROM
+   (SELECT mytime,
+       (SELECT TOP 1 time FROM piarchive..picomp2         WHERE tag = p.mytag AND time <= p.mytime ORDER BY tag, time DESC) prevtime,
+       (SELECT TOP 1 time FROM piarchive..picomp2
+        WHERE tag = p.mytag AND time >= p.mytime ORDER BY tag, time ASC) nexttime
+    FROM (SELECT 'sinusoid' mytag, DATE('t') mytime) p
+   ) t
+{
+Finds the nearest "sinusoid" event to the today's midnight.
+
+The "... FROM (SELECT 'sinusoid' mytag, DATE('t') mytime) p ..." part of the statement defines query parameters - tag and time. As you can see here, SQL CASE operator allows you to incorporate logic into SQL queries so that for simple algorithms, you can use SQL instead of programming.
+}
+
+Point Database Statements
+SELECT COUNT(*) FROM pipoint..pipoint2
+{
+Returns number of tags in the point database.
+
+PI OLEDB optimizes this query.
+}
+SELECT tag, descriptor FROM pipoint..classic WHERE pointsource = 'R'
+{
+Returns tags of point source "R" from the "classic" point class.
+}
+SELECT pointsource, COUNT(*) FROM pipoint..classic GROUP BY pointsource
+{
+Returns number of tags with the same point source attribute.
+}
+INSERT pipoint..classic (tag, pointtypex) VALUES ('TestTag', 'float32')
+{
+Creates a "float32" tag in the "classic" point class.
+}
+UPDATE pipoint..classic SET tag = 'TestTag2' WHERE tag = 'TestTag'
+{
+Renames the "TestTag".
+}
+DELETE pipoint..classic WHERE tag = 'TestTag2'
+{
+Deletes the "TestTag2".
+}
+
+Digital State Database Statements
+CREATE TABLE pids..TestSet (code Int32, offset Int32, name WString)
+{
+Creates a digital state set named "TestSet".
+}
+INSERT pids..TestSet (name) VALUES ('TestState')
+{
+Creates a digital state in the "TestSet".
+}
+UPDATE pids..TestSet SET name = 'TestState2' WHERE name = 'TestState'
+{
+Renames the "TestState".
+}
+DROP TABLE pids..TestSet
+{
+Deletes the "TestSet".
+}
+
+Module Database Statements
+SELECT name FROM pimodule..pimoduleh WHERE path = '\%OSI\'
+{
+Returns modules from the "\%OSI\" module directory.
+}
+SELECT name FROM pimodule..pimoduleh WHERE path LIKE '\-%OSI\%' ESCAPE '-'
+{
+Returns modules from the "\%OSI\" module subtree.
+
+To allow PI OLEDB optimize module paths containing LIKE wildcards, you need to mark them using an escape character.
+}
+INSERT pimodule..pimoduleh (name) VALUES ('TestModule')
+{
+Creates a module in the root directory effective from "01-Jan-1970 00:00:01 UTC". The "name" column indicates the new module creation.
+}
+INSERT pimodule..pimoduleh (path, uid) VALUES ('\%OSI\', MODULEUID('\TestModule'))
+{
+Creates a link to the "TestModule" in the "\%OSI\" directory. The "uid" column indicates the module link creation.
+}
+DELETE pimodule..pimoduleh WHERE path = '\%OSI\' AND name = 'TestModule'
+{
+Deletes a link to the "TestModule".
+
+If the link being deleted is the last one, the module is deleted permanently.
+}
+UPDATE pimodule..pimodule SET ispiunit = TRUE WHERE uid = MODULEUID('\TestModule')
+{
+Marks the "TestModule" as unit.
+}
+INSERT pimodule..piversion (moduleuid, effective) VALUES (MODULEUID('\TestModule'), 'T')
+{
+Creates a version of the "TestModule" effective from today.
+}
+INSERT pimodule..pialias (moduleuid, moduleeffective, name, tag)
+VALUES (MODULEUID('\TestModule'), MODULEEFFECTIVE(MODULEUID('\TestModule')), 'TestAlias', 'sinusoid')
+{
+Creates an alias for the "TestModule" version valid since today.
+
+When creating aliases and properties, you should always specify the module unique ID and effective date. For this purpose, PI OLEDB provides the "MODULEUID" and "MODULEEFFECTIVE" functions.
+}
+INSERT pimodule..piproperty (moduleuid, moduleeffective, name, value)
+VALUES (MODULEUID('\TestModule'), MODULEEFFECTIVE(MODULEUID('\TestModule')), 'TestProperty', CAST(1 AS Int32))
+{
+Creates a property in the root directory.
+
+To explicitly specify data type of the property value, you need to use the CAST operator.
+}
+UPDATE pimodule..pimoduleh SET path = '\%OSI\' WHERE path = '\' AND name = 'TestModule'
+{
+Moves the "TestModule" in the hierarchy to the "\%OSI\" directory.
+
+You can move just one module by one UPDATE statement, i.e. you must restrict all primary key columns in the WHERE condition.
+}
+DELETE pimodule..pimodule WHERE uid = MODULEUID('\%OSI\TestModule')
+{
+Permanently deletes the "TestModule" regardless of number of links in the hierarchy.
+}
+
+Batch Database Statements
+INSERT pibatch..pibatch (batchid, starttime) VALUES ('TestBatch', '*')
+{
+Creates a batch.
+}
+INSERT pimodule..pimoduleh (name) VALUES ('TestModule')
+{
+Creates a module.
+
+The module created by this statement serves as unit in consequent statements, which demostrate creating of unit batches.
+}
+UPDATE pimodule..pimodule SET ispiunit = TRUE WHERE uid = MODULEUID('\TestModule')
+{
+Marks the "TestModule" as unit.
+}
+INSERT pibatch..piunitbatch (batchid, starttime, moduleuid, batchuid)
+VALUES ('TestUnitBatch', '*', MODULEUID('\TestModule'), (SELECT uid FROM pibatch..pibatch WHERE batchid = 'TestBatch' AND starttime >= 't'))
+{
+Creates a unit batch and assigns it to the "TestBatch".
+
+To speed up the parent batch lookup, you should restrict the lookup time interval as much as possible.
+}
+UPDATE pibatch..piunitbatch SET endtime = '*' WHERE batchid = 'TestUnitBatch'
+AND starttime >= 't' AND moduleuid = MODULEUID('\TestModule')
+{
+Ends the "TestUnitBatch".
+
+To speed up the unit batch lookup, you should restrict the unit and the lookup time interval.
+}
+INSERT pibatch..pisubbatch (unitbatchuid, name, starttime)
+SELECT uid, 'TestSubbatch', '*' FROM pibatch..piunitbatch
+WHERE batchid = 'TestUnitBatch' AND starttime >= 't' AND moduleuid = MODULEUID('\TestModule')
+{
+Creates a subbatch.
+}
+DELETE pibatch..piunitbatch
+WHERE batchid = 'TestUnitBatch' AND starttime >= 't' AND moduleuid = MODULEUID('\TestModule')
+{
+Deletes the "TestUnitBatch".
+
+Unit batches are deleted together with subbatches.
+}
+DELETE pimodule..pimodule WHERE uid = MODULEUID('\TestModule')
+{
+Deletes the "TestModule".
+}
+DELETE pibatch..pibatch WHERE batchid = 'TestBatch' AND starttime >= 't'
+{
+Deletes the "TestBatch".
+
+Batches are not deleted together with unit batches, i.e. if  you delete a batch, its unit batches are just disconnected.
+}
+
+MDB-BDB Tutorial Queries
+SELECT m.description, m.ispiunit,
+  (SELECT name FROM piheading..piheading WHERE uid = m.headinguid) heading
+FROM pimodule..pimodule m INNER JOIN pimodule..pimoduleh h ON m.uid = h.uid
+WHERE h.path = '\PI OLEDB Tutorial\Units\Units A\' AND h.name = 'Unit A1'
+{
+Returns version independent attributes of the "Unit A1" module.
+
+Queries in this category return data created by the "MDB-BDB Tutorial" shipped with PI OLEDB. For details, refer to the PI OLEDB Manual.
+
+To convert a heading unique ID to a name, we use a correlated subquery, i.e. a subquery that is evaluated separately for each returned row and takes a column from the outer query as a parameter.
+}
+SELECT m.description, m.ispiunit,
+  (SELECT name FROM piheading..piheading WHERE uid = m.headinguid) heading
+FROM pimodule..pimodule m
+WHERE m.uid IN (SELECT uid FROM pimodule..pimoduleh WHERE path = '\PI OLEDB Tutorial\Units\Units A\'
+AND name = 'Unit A1')
+{
+Returns version independent attributes of the "Unit A1" module.
+
+Using subqueries instead of inner joins is more efficient and more readable.
+}
+SELECT m.description, m.ispiunit,
+  (SELECT name FROM piheading..piheading WHERE uid = m.headinguid) heading
+FROM pimodule..pimodule m
+WHERE m.uid = MODULEUID('\PI OLEDB Tutorial\Units\Units A\Unit A1')
+{
+Returns version independent attributes of the "Unit A1" module.
+
+When retrieving attributes of just one module, you can use the MODULEUID function.
+}
+SELECT effective, revision, version, comment FROM pimodule..piversion
+WHERE moduleuid = MODULEUID('\PI OLEDB Tutorial\Units\Units A\Unit A1') AND querydate IS NULL
+{
+Returns all versions of the "Unit A1" module.
+
+To return all versions of a module, you need to use the "querydate IS NULL" WHERE condition.
+}
+SELECT name, server, tag FROM pimodule..pialias
+WHERE moduleuid = MODULEUID('\PI OLEDB Tutorial\Units\Units A\Unit A1')
+{
+Returns aliases of the "Unit A1" module.
+
+"querydate" column defaults to the current time so that the current module version aliases are returned.
+}
+SELECT path, name, value FROM pimodule..piproperty
+WHERE moduleuid = MODULEUID('\PI OLEDB Tutorial\Units\Units A\Unit A1')
+{
+Returns properties of the "Unit A1" module.
+}
+SELECT tag, time, value, status FROM piarchive..picomp2
+WHERE tag =
+  (SELECT tag FROM pimodule..pialias
+   WHERE moduleuid = MODULEUID('\PI OLEDB Tutorial\Units\Units A\Unit A1') AND name = 'Quantity')
+AND time >= '*-1h'
+{
+Returns archive data for a tag associated with the "Unit A1" alias.
+}
+SELECT batchid, starttime, endtime, product FROM pibatch..piunitbatch
+WHERE moduleuid = MODULEUID('\PI OLEDB Tutorial\Units\Units A\Unit A1') AND starttime >= 't'
+ORDER BY starttime
+{
+Returns unit batches made in the "Unit A1" unit in the course of today.
+}
+SELECT h.name, u.batchid, u.starttime, u.endtime, u.product FROM pibatch..piunitbatch u
+INNER JOIN pimodule..pimoduleh h ON u.moduleuid = h.uid
+WHERE u.starttime >= 't' AND h.path LIKE '\PI OLEDB Tutorial\Units\Units A\%'
+ORDER BY u.starttime, h.name
+{
+Returns unit batches made in all "A" units.
+}
+SELECT (SELECT name FROM pimodule..pimodule WHERE uid = u.moduleuid) unit,
+  u.starttime, cast(u.endtime - u.starttime as string) duration
+FROM pibatch..piunitbatch u WHERE u.batchuid =
+  (SELECT uid FROM pibatch..pibatch WHERE batchid = 'A1_3' AND starttime >= 't')
+ORDER BY u.starttime
+{
+Returns names of units where the "A1_3" batch was processed.
+}
+SELECT DISTINCT PARENTNAME(path) line FROM pimodule..pimoduleh
+WHERE uid IN
+  (SELECT moduleuid FROM pibatch..piunitbatch WHERE batchuid =
+     (SELECT uid FROM pibatch..pibatch WHERE batchid = 'A1_3' AND starttime >= 't'))
+AND PARENTNAME(path, 1) = 'Topology'
+ORDER BY 1
+{
+Returns names of production lines where the "A1_3" batch was processed.
+}
+SELECT PARENTNAME(h.path) unittype, 
+cast (AVG(u.endtime - u.starttime) as String) avgduration, 
+cast (MIN(u.endtime - u.starttime) as String) minduration, 
+cast (MAX(u.endtime - u.starttime) as String) maxduration
+FROM pibatch..piunitbatch u INNER JOIN pimodule..pimoduleh h ON h.uid = u.moduleuid
+WHERE u.starttime >= 't' AND PARENTNAME(h.path, 1) = 'Units'
+GROUP BY PARENTNAME(h.path)
+ORDER BY 1
+{
+Computes average, minimum, and maximum duration of a unit batch on the "A" units.
+Unfortunately, Grid displays Time with current date. Workaround: cast as string
+}
+
+User Database Statements
+INSERT piuser..piuser (name) VALUES ('TestUser')
+{
+Creates a user.
+}
+UPDATE piuser..piuser SET password = 'PI' WHERE name = 'TestUser' AND password = ''
+{
+Changes the "TestUser" password.
+
+To successfully change the password, you must specify the old password in the WHERE condition.
+}
+INSERT piuser..pimembership (username, groupname) VALUES ('TestUser', 'piuser')
+{
+Adds the "TestUser" to the "piuser" group.
+}
+DELETE piuser..piuser WHERE name = 'TestUser'
+{
+Deletes the "TestUser".
+}
+
+Misc Statements
+SELECT * FROM PIPRODUCTVERSION
+{
+Shows software version numbers and processor architecture.
+}
+SELECT * FROM PICONNECTION
+{
+Shows PI OLEDB connection status.
+}
+Switch Member
+{
+Rotates to next collective member (HA only)
+}
+SELECT * FROM pisdklog WHERE time > '*-10m'
+{
+Show log messages for last 10 minutes.
+}
